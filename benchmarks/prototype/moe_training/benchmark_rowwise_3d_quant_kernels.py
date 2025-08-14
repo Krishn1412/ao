@@ -37,6 +37,8 @@ class ExperimentConfig:
 class ExperimentResult:
     torch_time_us: float
     triton_time_us: float
+    torch_mem_bw_gbps: float
+    triton_mem_bw_gbps: float
 
 
 @dataclass(frozen=True)
@@ -110,9 +112,21 @@ def run_experiment(config: ExperimentConfig) -> ExperimentResult:
         input_tensor,
     )
 
+    # mem bw calculations - excluding scales to simplify calculation
+    # but still get an accurate estimate.
+    bytes_per_input_el = torch.finfo(config.high_precision_dtype).bits / 8
+    num_elements = input_tensor.numel()
+    read_bytes = num_elements * bytes_per_input_el
+    write_bytes = num_elements  # 1 byte per element in float8_e4m3fn
+    read_write_bytes = read_bytes + write_bytes
+    torch_mem_bw_gbps = (read_write_bytes) / (torch_time_us / 1e6) / 1e9
+    triton_mem_bw_gbps = (read_write_bytes) / (triton_time_us / 1e6) / 1e9
+
     return ExperimentResult(
         torch_time_us=torch_time_us,
         triton_time_us=triton_time_us,
+        torch_mem_bw_gbps=torch_mem_bw_gbps,
+        triton_mem_bw_gbps=triton_mem_bw_gbps,
     )
 
 
@@ -121,6 +135,8 @@ def print_results(experiments: List[Experiment]):
         "input_shape",
         "torch_time_us",
         "triton_time_us",
+        "torch_mem_bw_gbps",
+        "triton_mem_bw_gbps",
         "triton_speedup",
     ]
     rows = []
@@ -131,6 +147,8 @@ def print_results(experiments: List[Experiment]):
                 input_shape,
                 experiment.result.torch_time_us,
                 experiment.result.triton_time_us,
+                round(experiment.result.torch_mem_bw_gbps, 3),
+                round(experiment.result.triton_mem_bw_gbps, 3),
                 f"{experiment.result.torch_time_us / experiment.result.triton_time_us:.2f}x",
             ]
         )

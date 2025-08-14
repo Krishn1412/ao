@@ -12,7 +12,7 @@ from typing import List
 import torch
 from tabulate import tabulate
 from tqdm import tqdm
-from utils import bench_fwd_bwd_microseconds, profile_fn
+from utils import bench_fwd_bwd_microseconds, profile_fwd_bwd
 
 from torchao.prototype.moe_training import _scaled_grouped_mm
 from torchao.prototype.moe_training.conversion_utils import MoEScalingType
@@ -46,8 +46,9 @@ class Experiment:
 
 
 def get_configs() -> List[ExperimentConfig]:
+    # Llama4 shapes
     A_shapes = [(16640, 5120)]
-    B_shapes = [(16, 8192, 5120)]
+    B_shapes = [(16, 8192, 5120), (128, 8192, 5120)]
     recipes = [MoEScalingType.FP8_ROWWISE]
     high_precision_dtypes = [torch.bfloat16]
     configs = []
@@ -107,7 +108,7 @@ def run_experiment(
         use_compile=args.compile,
     )
     if args.profile:
-        profile_fn(
+        profile_fwd_bwd(
             torch._grouped_mm,
             A,
             B_t,
@@ -128,7 +129,7 @@ def run_experiment(
         use_compile=args.compile,
     )
     if args.profile:
-        profile_fn(
+        profile_fwd_bwd(
             _scaled_grouped_mm,
             A,
             B_t,
